@@ -22,9 +22,20 @@ const RELEASE_TYPE_STYLE: Record<string, { label: string; color: string }> = {
   alpha: { label: 'Alpha', color: 'text-red-400 bg-red-400/10 border-red-400/20' },
 };
 
+const FILTER_STYLES =
+  'px-3 py-1.5 bg-mc-card border border-white/5 rounded-md text-sm text-mc-text focus:outline-none focus:border-mc-green/40 transition-colors cursor-pointer';
+
+const RELEASE_TYPES = [
+  { value: 'all', label: '全部版本类型' },
+  { value: 'release', label: '正式版' },
+  { value: 'beta', label: 'Beta' },
+  { value: 'alpha', label: 'Alpha' },
+];
+
 export default function VersionSelector({ files, source, modId }: VersionSelectorProps) {
-  const [filterGameVersion, setFilterGameVersion] = useState<string | null>(null);
-  const [filterLoader, setFilterLoader] = useState<string | null>(null);
+  const [filterGameVersion, setFilterGameVersion] = useState<string>('all');
+  const [filterLoader, setFilterLoader] = useState<string>('all');
+  const [filterReleaseType, setFilterReleaseType] = useState<string>('all');
 
   // 收集所有去重的游戏版本
   const allGameVersions = useMemo(() => {
@@ -40,149 +51,148 @@ export default function VersionSelector({ files, source, modId }: VersionSelecto
     return Array.from(set);
   }, [files]);
 
-  // 筛选后的文件列表（版本 + 加载器叠加筛选）
+  // 筛选后的文件列表（版本 + 加载器 + release 类型叠加筛选）
   const filteredFiles = useMemo(() => {
     let result = files;
-    if (filterGameVersion) {
+    if (filterGameVersion && filterGameVersion !== 'all') {
       result = result.filter((f) => f.gameVersions.includes(filterGameVersion));
     }
-    if (filterLoader) {
+    if (filterLoader && filterLoader !== 'all') {
       const lower = filterLoader.toLowerCase();
       result = result.filter((f) =>
         f.modLoaders.some((l) => l.toLowerCase() === lower)
       );
     }
+    if (filterReleaseType && filterReleaseType !== 'all') {
+      result = result.filter((f) => f.releaseType === filterReleaseType);
+    }
     return result;
-  }, [files, filterGameVersion, filterLoader]);
+  }, [files, filterGameVersion, filterLoader, filterReleaseType]);
 
   return (
     <div>
-      {/* 游戏版本筛选 chips */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        <button
-          onClick={() => setFilterGameVersion(null)}
-          className={`px-3 py-1 text-xs rounded-full transition-all duration-200 ${
-            !filterGameVersion
-              ? 'bg-mc-green/15 text-mc-green-light border border-mc-green/20'
-              : 'bg-mc-card text-mc-muted border border-white/5 hover:text-mc-text'
-          }`}
+      {/* 筛选栏 */}
+      <div className="flex flex-wrap gap-3 mb-4">
+        {/* 游戏版本筛选 */}
+        <select
+          value={filterGameVersion}
+          onChange={e => setFilterGameVersion(e.target.value)}
+          className={FILTER_STYLES}
         >
-          全部
-        </button>
-        {allGameVersions.slice(0, 15).map((gv) => (
-          <button
-            key={gv}
-            onClick={() => setFilterGameVersion(gv === filterGameVersion ? null : gv)}
-            className={`px-3 py-1 text-xs rounded-full transition-all duration-200 ${
-              filterGameVersion === gv
-                ? 'bg-mc-green/15 text-mc-green-light border border-mc-green/20'
-                : 'bg-mc-card text-mc-muted border border-white/5 hover:text-mc-text'
-            }`}
-          >
-            {gv}
-          </button>
-        ))}
-        {allGameVersions.length > 15 && (
-          <span className="px-2 py-1 text-xs text-mc-muted">
-            +{allGameVersions.length - 15}
-          </span>
-        )}
+          <option value="all">全部版本</option>
+          {allGameVersions.map((gv) => (
+            <option key={gv} value={gv}>{gv}</option>
+          ))}
+        </select>
+
+        {/* 加载器筛选 */}
+        <select
+          value={filterLoader}
+          onChange={e => setFilterLoader(e.target.value)}
+          className={FILTER_STYLES}
+        >
+          <option value="all">全部加载器</option>
+          {allLoaders.length > 0 ? (
+            allLoaders.map((loader) => (
+              <option key={loader} value={loader}>
+                {LOADER_BADGES[loader.toLowerCase()] || loader}
+              </option>
+            ))
+          ) : (
+            <option value="" disabled>暂无数据</option>
+          )}
+        </select>
+
+        {/* 版本类型筛选 */}
+        <select
+          value={filterReleaseType}
+          onChange={e => setFilterReleaseType(e.target.value)}
+          className={FILTER_STYLES}
+        >
+          {RELEASE_TYPES.map(t => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </select>
       </div>
 
-      {/* 加载器筛选 chips */}
-      {allLoaders.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          <button
-            onClick={() => setFilterLoader(null)}
-            className={`px-3 py-1 text-xs rounded-full transition-all duration-200 ${
-              !filterLoader
-                ? 'bg-mc-green/15 text-mc-green-light border border-mc-green/20'
-                : 'bg-mc-card text-mc-muted border border-white/5 hover:text-mc-text'
-            }`}
-          >
-            全部加载器
-          </button>
-          {allLoaders.map((loader) => (
-            <button
-              key={loader}
-              onClick={() => setFilterLoader(loader === filterLoader ? null : loader)}
-              className={`px-3 py-1 text-xs rounded-full transition-all duration-200 capitalize ${
-                filterLoader === loader
-                  ? 'bg-mc-green/15 text-mc-green-light border border-mc-green/20'
-                  : 'bg-mc-card text-mc-muted border border-white/5 hover:text-mc-text'
-              }`}
-            >
-              {loader}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* 文件列表 */}
+      {/* 文件列表 — 表格布局 */}
       {filteredFiles.length === 0 ? (
         <p className="text-sm text-mc-muted py-8 text-center">暂无版本</p>
       ) : (
-        <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-          {filteredFiles.map((file) => {
-            const typeInfo = RELEASE_TYPE_STYLE[file.releaseType] || RELEASE_TYPE_STYLE.release;
-            return (
-              <div
-                key={file.id}
-                className="flex items-center gap-3 p-3 rounded-mc border border-white/5 bg-mc-card hover:border-white/10 transition-all duration-200"
-              >
-                {/* 文件信息 */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm text-mc-text font-medium truncate">
+        <div className="max-h-[600px] overflow-y-auto pr-1">
+          {/* 表头 */}
+          <div className="hidden md:flex items-center gap-3 px-3 py-2 text-xs text-mc-muted border-b border-white/5 mb-1">
+            <span className="flex-1">文件名</span>
+            <span className="w-28 shrink-0">游戏版本</span>
+            <span className="w-20 shrink-0">加载器</span>
+            <span className="w-16 shrink-0">类型</span>
+            <span className="w-16 shrink-0 text-right">大小</span>
+            <span className="w-20 shrink-0 text-right">操作</span>
+          </div>
+          <div className="space-y-1">
+            {filteredFiles.map((file) => {
+              const typeInfo = RELEASE_TYPE_STYLE[file.releaseType] || RELEASE_TYPE_STYLE.release;
+              return (
+                <div
+                  key={file.id}
+                  className="flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 p-3 rounded-mc border border-white/5 bg-mc-card hover:border-white/10 transition-all duration-200"
+                >
+                  {/* 文件名 */}
+                  <div className="flex-1 min-w-0 w-full md:w-auto">
+                    <span className="text-sm text-mc-text font-medium truncate block">
                       {file.displayName || file.fileName}
                     </span>
+                  </div>
+
+                  {/* 游戏版本标签 */}
+                  <div className="w-full md:w-28 shrink-0">
+                    <span className="md:hidden text-xs text-mc-muted mr-1">游戏版本:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {file.gameVersions.slice(0, 3).map((gv) => (
+                        <span key={gv} className="text-xs text-mc-muted bg-mc-bg px-1.5 py-0.5 rounded">
+                          {gv}
+                        </span>
+                      ))}
+                      {file.gameVersions.length > 3 && (
+                        <span className="text-xs text-mc-muted">+{file.gameVersions.length - 3}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 加载器标签 */}
+                  <div className="w-full md:w-20 shrink-0">
+                    <span className="md:hidden text-xs text-mc-muted mr-1">加载器:</span>
+                    {file.modLoaders.length > 0 ? (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-mc-green/15 text-mc-green-light">
+                        {LOADER_BADGES[file.modLoaders[0]?.toLowerCase()] || file.modLoaders[0]}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-mc-muted">-</span>
+                    )}
+                  </div>
+
+                  {/* 版本类型 */}
+                  <div className="w-full md:w-16 shrink-0">
+                    <span className="md:hidden text-xs text-mc-muted mr-1">类型:</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded border ${typeInfo.color}`}>
                       {typeInfo.label}
                     </span>
                   </div>
 
-                  {/* 游戏版本标签 */}
-                  <div className="flex flex-wrap gap-1 mb-1">
-                    {file.gameVersions.slice(0, 4).map((gv) => (
-                      <span
-                        key={gv}
-                        className="text-xs text-mc-muted bg-mc-bg px-1.5 py-0.5 rounded"
-                      >
-                        {gv}
-                      </span>
-                    ))}
-                    {file.gameVersions.length > 4 && (
-                      <span className="text-xs text-mc-muted">
-                        +{file.gameVersions.length - 4}
-                      </span>
-                    )}
+                  {/* 文件大小 */}
+                  <div className="w-full md:w-16 shrink-0 text-right">
+                    <span className="md:hidden text-xs text-mc-muted mr-1">大小:</span>
+                    <span className="text-xs text-mc-muted">{formatFileSize(file.fileSize)}</span>
                   </div>
 
-                  {/* 加载器标签 */}
-                  {file.modLoaders.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {file.modLoaders.slice(0, 3).map((l) => (
-                        <span
-                          key={l}
-                          className="text-xs px-1.5 py-0.5 rounded bg-mc-green/15 text-mc-green-light"
-                        >
-                          {LOADER_BADGES[l.toLowerCase()] || l}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {/* 下载按钮 */}
+                  <div className="w-full md:w-20 shrink-0 text-right">
+                    <DownloadButton source={source} modId={modId} file={file} />
+                  </div>
                 </div>
-
-                {/* 文件大小 + 下载按钮 */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-mc-muted hidden sm:block">
-                    {formatFileSize(file.fileSize)}
-                  </span>
-                  <DownloadButton source={source} modId={modId} file={file} />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

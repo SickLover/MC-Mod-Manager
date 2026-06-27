@@ -267,6 +267,17 @@ fn to_resource_detail(mod_: &CfMod) -> ResourceDetail {
     }
 }
 
+/// 已知的加载器关键字（不区分大小写）
+const LOADER_KEYWORDS: &[&str] = &[
+    "forge", "fabric", "neoforge", "quilt", "rift", "liteloader",
+    "server", "client", "bukkit", "spigot", "paper",
+];
+
+/// 判断是否是加载器名称
+fn is_loader(value: &str) -> bool {
+    LOADER_KEYWORDS.iter().any(|kw| value.eq_ignore_ascii_case(kw))
+}
+
 /// CfFileEntry → ModFile
 fn to_mod_file(file: &CfFileEntry) -> ModFile {
     let release_type = match file.release_type {
@@ -275,12 +286,24 @@ fn to_mod_file(file: &CfFileEntry) -> ModFile {
         3 => "alpha",
         _ => "release",
     };
+
+    // 从 game_versions 中分离出真正的游戏版本 vs 加载器
+    let (game_versions, extracted_loaders): (Vec<String>, Vec<String>) =
+        file.game_versions.iter().cloned().partition(|v| !is_loader(v));
+
+    // 如果 mod_loaders 为空，从 game_versions 提取；否则用 API 返回的
+    let mod_loaders = if file.mod_loaders.is_empty() && !extracted_loaders.is_empty() {
+        extracted_loaders
+    } else {
+        file.mod_loaders.iter().map(|l| l.name.clone()).collect()
+    };
+
     ModFile {
         id: file.id.to_string(),
         file_name: file.file_name.clone(),
         display_name: file.display_name.clone(),
-        game_versions: file.game_versions.clone(),
-        mod_loaders: file.mod_loaders.iter().map(|l| l.name.clone()).collect(),
+        game_versions,
+        mod_loaders,
         release_type: release_type.to_string(),
         file_size: file.file_length,
         download_url: file.download_url.clone(),

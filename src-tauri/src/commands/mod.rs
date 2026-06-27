@@ -7,3 +7,4 @@ pub mod batch_download;
 pub mod category;
 pub mod recently_viewed;
 pub mod settings;
+pub mod manifest;

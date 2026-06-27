@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { CollectionItem, ModFile, ResourceDetail } from '@/types';
+import type { Collection, CollectionItem, ModFile, ResourceDetail } from '@/types';
 import ItemRow from '@/components/collection/ItemRow';
 import CompatibilityCheck from '@/components/collection/CompatibilityCheck';
 import Loading from '@/components/common/Loading';
@@ -30,6 +30,30 @@ const SOURCES = [
   { value: 'modrinth', label: 'Modrinth' },
 ];
 
+// ----- 导入/导出类型 -----
+interface ImportResult {
+  added: number;
+  skipped: number;
+  errors: string[];
+}
+
+/// 从 categories JSON 或 resourceType 提取加载器
+function extractLoader(item: CollectionItem): string {
+  try {
+    const cats: string[] = JSON.parse(item.categories);
+    const loaderKeywords = ['forge', 'fabric', 'neoforge', 'quilt', 'rift', 'liteloader'];
+    const found = cats.find(c => loaderKeywords.some(kw => c.toLowerCase().includes(kw)));
+    if (found) {
+      const lower = found.toLowerCase();
+      if (lower.includes('forge')) return lower.includes('neo') ? 'NeoForge' : 'Forge';
+      if (lower.includes('fabric')) return 'Fabric';
+      if (lower.includes('quilt')) return 'Quilt';
+      return found;
+    }
+  } catch {}
+  return item.resourceType; // fallback
+}
+
 export default function CollectionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [items, setItems] = useState<CollectionItem[]>([]);
@@ -45,12 +69,24 @@ export default function CollectionDetailPage() {
   const [downloading, setDownloading] = useState(false);
   const toast = useToast();
 
+  // 导入/导出状态
+  const [importFilePath, setImportFilePath] = useState<string | null>(null);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [collectionName, setCollectionName] = useState('收藏夹');
+
   const loadItems = useCallback(async () => {
     if (!id) return;
     try {
       const data = await invoke<CollectionItem[]>('list_collection_items', { collectionId: id });
       setItems(data);
       setLoading(false);
+
+      // 获取收藏夹名称
+      try {
+        const allColls = await invoke<Collection[]>('list_collections');
+        const current = allColls.find(c => c.id === id);
+        if (current) setCollectionName(current.name);
+      } catch { /* 忽略 */ }
 
       // 后台加载每个资源的文件版本列表（串行，避免 API 限速）
       setLoadingVersions(true);
@@ -169,6 +205,90 @@ export default function CollectionDetailPage() {
     setVersionSelections(prev => ({ ...prev, [itemId]: fileId }));
   };
 
+  // ----- 导出 -----
+  const handleExport = async () => {
+    const selectedItems = items.filter(i => selected.has(i.id));
+    if (selectedItems.length === 0) {
+      toast?.info?.('请先勾选要导出的 Mod');
+      return;
+    }
+
+    // 调 rfd 保存文件对话框（通过 Rust command）
+    const filePath = await invoke<string>('pick_save_file', {
+      defaultName: `${collectionName || 'mods'}.mcmodlist.json`,
+    });
+    if (!filePath) return; // 用户取消
+
+    const exportItems = selectedItems.map(i => ({
+      name: i.name,
+      loader: extractLoader(i),
+    }));
+
+    try {
+      await invoke('export_manifest', {
+        items: exportItems,
+        collectionName: collectionName || '未命名',
+        savePath: filePath,
+      });
+      toast?.success?.(`已导出 ${exportItems.length} 个 Mod`);
+    } catch (err) {
+      toast?.error?.(`导出失败: ${String(err)}`);
+    }
+  };
+
+  // ----- 导入 -----
+  const handleImportClick = async () => {
+    const path = await invoke<string>('pick_open_file');
+    if (path) {
+      setImportFilePath(path);
+    }
+  };
+
+  const handleImportToCurrent = async () => {
+    if (!importFilePath || !id) return;
+    try {
+      const result = await invoke<ImportResult>('import_manifest', {
+        collectionId: id,
+        filePath: importFilePath,
+      });
+      showImportResult(result);
+      loadItems();
+    } catch (err) {
+      toast?.error?.(`导入失败: ${String(err)}`);
+    } finally {
+      setImportFilePath(null);
+      setNewCollectionName('');
+    }
+  };
+
+  const handleImportToNew = async () => {
+    if (!importFilePath || !newCollectionName.trim()) return;
+    try {
+      const coll = await invoke<Collection>('create_collection', {
+        name: newCollectionName.trim(),
+        collectionType: 'mod',
+        description: null as unknown as string,
+      });
+      const result = await invoke<ImportResult>('import_manifest', {
+        collectionId: coll.id,
+        filePath: importFilePath,
+      });
+      showImportResult(result);
+    } catch (err) {
+      toast?.error?.(`导入失败: ${String(err)}`);
+    } finally {
+      setImportFilePath(null);
+      setNewCollectionName('');
+    }
+  };
+
+  const showImportResult = (result: ImportResult) => {
+    const msg = [`新增 ${result.added} 个`];
+    if (result.skipped > 0) msg.push(`跳过 ${result.skipped} 个重复`);
+    if (result.errors.length > 0) msg.push(`${result.errors.length} 个失败`);
+    toast?.success?.(msg.join('，'));
+  };
+
   if (loading) return <Loading text="加载收藏夹..." />;
   if (items.length === 0) return <Empty message="收藏夹是空的" icon="📂" />;
 
@@ -176,13 +296,24 @@ export default function CollectionDetailPage() {
     <div className="max-w-5xl mx-auto px-6 pb-32">
       {/* sticky header */}
       <div className="sticky top-14 z-40 bg-mc-bg/95 backdrop-blur py-4 border-b border-white/5 mb-4">
-        <Link to="/collections" className="text-mc-muted hover:text-mc-text text-sm mb-2 inline-block transition-colors">
-          ← 返回收藏夹列表
-        </Link>
-        <h1 className="text-xl font-bold text-mc-text">
-          收藏夹详情{' '}
-          <span className="text-mc-muted text-sm font-normal">({items.length} 个资源)</span>
-        </h1>
+        <div className="flex items-start justify-between">
+          <div>
+            <Link to="/collections" className="text-mc-muted hover:text-mc-text text-sm mb-2 inline-block transition-colors">
+              ← 返回收藏夹列表
+            </Link>
+            <h1 className="text-xl font-bold text-mc-text">
+              收藏夹详情{' '}
+              <span className="text-mc-muted text-sm font-normal">({items.length} 个资源)</span>
+            </h1>
+          </div>
+          <button
+            onClick={handleImportClick}
+            className="px-3 py-1.5 bg-mc-card border border-white/5 text-mc-text rounded-md text-sm
+                       hover:bg-mc-card-hover transition-colors shrink-0"
+          >
+            📥 导入清单
+          </button>
+        </div>
       </div>
 
       {/* 筛选栏 */}
@@ -349,12 +480,72 @@ export default function CollectionDetailPage() {
             📁 下载为文件夹
           </button>
 
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 bg-mc-card border border-white/5 text-mc-text rounded-md text-sm
+                       hover:bg-mc-card-hover transition-colors"
+          >
+            📤 导出清单
+          </button>
+
           {downloading && (
             <span className="text-sm text-mc-muted">下载中...</span>
           )}
 
           <div className="ml-auto hidden lg:block text-xs text-mc-muted truncate max-w-xs">
             {items.filter(i => selected.has(i.id)).map(i => i.name).join(', ')}
+          </div>
+        </div>
+      )}
+
+      {/* 导入目标选择 Modal */}
+      {importFilePath && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50"
+          onClick={() => { setImportFilePath(null); setNewCollectionName(''); }}
+        >
+          <div
+            className="bg-mc-card rounded-mc border border-white/5 p-6 w-96 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-mc-text mb-4">导入到...</h3>
+
+            {/* 导入到当前收藏夹 */}
+            <button
+              onClick={handleImportToCurrent}
+              className="w-full text-left px-3 py-2 rounded-md hover:bg-mc-card-hover mb-2 transition-colors"
+            >
+              <span className="text-mc-text text-sm">📁 当前收藏夹</span>
+            </button>
+
+            {/* 新建收藏夹 */}
+            <div className="mt-3">
+              <p className="text-xs text-mc-muted mb-2">🆕 新建收藏夹</p>
+              <div className="flex gap-2">
+                <input
+                  value={newCollectionName}
+                  onChange={e => setNewCollectionName(e.target.value)}
+                  placeholder="输入收藏夹名称"
+                  className="flex-1 px-3 py-1.5 rounded-md bg-mc-bg border border-white/10 text-mc-text text-sm
+                             focus:outline-none focus:border-mc-green/40 transition-colors"
+                />
+                <button
+                  onClick={handleImportToNew}
+                  disabled={!newCollectionName.trim()}
+                  className="px-4 py-1.5 bg-mc-green text-white rounded-md text-sm font-medium
+                             hover:bg-mc-green-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  创建并导入
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={() => { setImportFilePath(null); setNewCollectionName(''); }}
+              className="mt-4 w-full py-2 text-mc-muted text-sm hover:text-mc-text transition-colors"
+            >
+              取消
+            </button>
           </div>
         </div>
       )}

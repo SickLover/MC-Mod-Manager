@@ -281,12 +281,22 @@ pub async fn get_project_versions(
             size: 0,
         });
 
+        // 从 game_versions 中分离出加载器（Modrinth API 理论上干净，但有些项目数据异常）
+        let (game_versions, extracted_loaders): (Vec<String>, Vec<String>) =
+            v.game_versions.iter().cloned().partition(|gv| !is_loader(gv));
+
+        let mod_loaders = if v.loaders.is_empty() && !extracted_loaders.is_empty() {
+            extracted_loaders
+        } else {
+            v.loaders.clone()
+        };
+
         ModFile {
             id: v.id.clone(),
             file_name: first_file.filename,
             display_name: format!("{} v{}", v.name, v.version_number),
-            game_versions: v.game_versions.clone(),
-            mod_loaders: v.loaders.clone(),
+            game_versions,
+            mod_loaders,
             release_type: v.release_type.clone(),
             file_size: first_file.size,
             download_url: Some(first_file.url),
@@ -296,4 +306,15 @@ pub async fn get_project_versions(
     }).collect();
 
     Ok(files)
+}
+
+/// 已知的加载器关键字
+const LOADER_KEYWORDS: &[&str] = &[
+    "forge", "fabric", "neoforge", "quilt", "rift", "liteloader",
+    "server", "client", "bukkit", "spigot", "paper",
+];
+
+/// 判断字符串是否为加载器名称
+fn is_loader(value: &str) -> bool {
+    LOADER_KEYWORDS.iter().any(|kw| value.eq_ignore_ascii_case(kw))
 }

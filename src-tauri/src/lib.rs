@@ -69,6 +69,10 @@ pub fn run() {
             commands::settings::get_settings,
             commands::settings::save_settings_command,
             commands::settings::select_directory,
+            commands::manifest::export_manifest,
+            commands::manifest::import_manifest,
+            commands::manifest::pick_save_file,
+            commands::manifest::pick_open_file,
         ])
         .run(tauri::generate_context!())
         .expect("启动 Tauri 失败");
