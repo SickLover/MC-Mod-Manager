@@ -1,0 +1,23 @@
+[package]
+name = "mc-mod-hub-light"
+version = "0.1.0"
+edition = "2021"
+description = "MC Mod Hub - Minecraft Mod Manager"
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.11", features = ["json", "native-tls", "stream"] }
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+dirs-next = "2"
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4"] }
+zip = "0.6"
+walkdir = "2"
+chrono = "0.4"
+rfd = "0.14"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

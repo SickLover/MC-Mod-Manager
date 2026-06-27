@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(/c/WINDOWS/system32/cmd.exe /c \"dir /s /b C:\\\\node.exe 2>nul & dir /s /b D:\\\\node.exe 2>nul & dir /s /b \\\\\"C:\\\\Program Files\\\\nodejs\\\\node.exe\\\\\" 2>nul\")",
+      "Bash(/c/WINDOWS/system32/cmd.exe /c \"dir /s /b C:\\\\node.exe 2>nul\")",
+      "Bash(/c/WINDOWS/system32/cmd.exe /c \"dir /s /b \\\\\"C:\\\\Program Files\\\\nodejs\\\\\" 2>nul\")"
+    ]
+  }
+}

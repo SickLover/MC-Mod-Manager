@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   全局暗色主题 — Minecraft 风格
+   ============================================================ */
+
+:root {
+  --mc-green: #5a9e3a;
+  --mc-green-light: #7ec850;
+  --mc-green-dark: #3d6e25;
+  --bg: #1a1a1a;
+  --card: #252525;
+  --card-hover: #2a2a2a;
+  --text: #e5e5e5;
+  --muted: #9ca3af;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 覆盖 Tailwind 基础背景 */
+body {
+  @apply bg-mc-bg text-mc-text;
+}
+
+/* ============================================================
+   动画 & 交互
+   ============================================================ */
+
+/* 卡片悬停：上浮 4px + 阴影 */
+.card-hover {
+  @apply transition-all duration-200;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* 淡入动画 */
+.fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+
+/* 链接全局样式 */
+a {
+  color: var(--mc-green-light);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--mc-green);
+}
+
+/* 选择文字 */
+::selection {
+  background: var(--mc-green-dark);
+  color: #fff;
+}
