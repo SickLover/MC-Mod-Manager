@@ -1,4 +1,4 @@
-# MC Mod Hub 轻量化版
+# MC Mod Manager
 
 Minecraft Mod/光影/资源包桌面管理工具。从 CurseForge 和 Modrinth 搜索、管理收藏夹、批量下载。
 
